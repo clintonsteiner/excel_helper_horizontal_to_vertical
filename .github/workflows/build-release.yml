@@ -1,0 +1,150 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'main.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/build-release.yml'
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    name: Build Executables
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Build Windows executable
+        run: |
+          GOOS=windows GOARCH=amd64 go build -o excel_converter.exe
+          ls -lh excel_converter.exe
+
+      - name: Build macOS executable (Intel)
+        run: |
+          GOOS=darwin GOARCH=amd64 go build -o excel_converter_macos_intel
+          ls -lh excel_converter_macos_intel
+
+      - name: Build macOS executable (Apple Silicon)
+        run: |
+          GOOS=darwin GOARCH=arm64 go build -o excel_converter_macos_arm64
+          ls -lh excel_converter_macos_arm64
+
+      - name: Build Linux executable
+        run: |
+          GOOS=linux GOARCH=amd64 go build -o excel_converter_linux
+          ls -lh excel_converter_linux
+
+      - name: Create version
+        id: version
+        run: |
+          VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "v0.0.0-$(date +%Y%m%d-%H%M%S)")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Build version: $VERSION"
+
+      - name: Create release assets directory
+        run: mkdir -p release_assets
+
+      - name: Copy files to release directory
+        run: |
+          cp excel_converter.exe release_assets/
+          cp excel_converter_macos_intel release_assets/
+          cp excel_converter_macos_arm64 release_assets/
+          cp excel_converter_linux release_assets/
+          cp convert.bat release_assets/
+          cp README.md release_assets/
+          cp HOW_TO_SHARE.md release_assets/
+          ls -la release_assets/
+
+      - name: Create checksums
+        run: |
+          cd release_assets
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+          cd ..
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: excel-converter-builds
+          path: release_assets/
+          retention-days: 30
+
+      - name: Create Release
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          release_name: Release ${{ steps.version.outputs.version }}
+          body: |
+            # Excel Converter - Horizontal to Vertical Format
+
+            Automated build and release of excel_converter.
+
+            ## Files Included
+            - **excel_converter.exe** - Windows executable
+            - **excel_converter_macos_intel** - macOS executable (Intel Macs)
+            - **excel_converter_macos_arm64** - macOS executable (Apple Silicon/M1/M2/M3)
+            - **excel_converter_linux** - Linux executable
+            - **convert.bat** - Windows batch script
+            - **README.md** - Usage instructions
+            - **HOW_TO_SHARE.md** - Guide for sharing
+            - **SHA256SUMS** - Checksums for verification
+
+            ## Quick Start
+
+            ### Windows
+            ```bash
+            excel_converter.exe -output newsheet "your_file.xlsx"
+            ```
+
+            Or use the batch script:
+            ```bash
+            convert.bat "your_file.xlsx"
+            ```
+
+            ### macOS
+            ```bash
+            chmod +x excel_converter_macos_arm64  # For Apple Silicon
+            ./excel_converter_macos_arm64 -output newsheet "your_file.xlsx"
+            ```
+
+            ### Linux
+            ```bash
+            chmod +x excel_converter_linux
+            ./excel_converter_linux -output newsheet "your_file.xlsx"
+            ```
+
+            ## Verify Downloads
+            To verify the integrity of downloaded files:
+            ```bash
+            sha256sum -c SHA256SUMS
+            ```
+
+            See README.md for detailed usage instructions and HOW_TO_SHARE.md for distribution guidance.
+          files: |
+            release_assets/excel_converter.exe
+            release_assets/excel_converter_macos_intel
+            release_assets/excel_converter_macos_arm64
+            release_assets/excel_converter_linux
+            release_assets/convert.bat
+            release_assets/README.md
+            release_assets/HOW_TO_SHARE.md
+            release_assets/SHA256SUMS
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

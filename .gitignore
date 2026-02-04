@@ -1,0 +1,41 @@
+# Build artifacts
+excel_converter
+Excel Help_CJ.xlsx
+excel_converter.exe
+excel_converter_macos_intel
+excel_converter_macos_arm64
+excel_converter_linux
+*.o
+*.a
+*.so
+
+# Test binaries, build with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+
+# Dependency directories
+vendor/
+
+# IDE settings
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build directories
+release_assets/
+dist/
+
+# Test Excel files
+test_*.xlsx
+*_test.xlsx
