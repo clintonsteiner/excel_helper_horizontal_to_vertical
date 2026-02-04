@@ -80,14 +80,26 @@ func convertProvidedDataToRequiredFormat(wb *excelize.File, sheetName string) ([
 		return nil, fmt.Errorf("'%s' sheet has insufficient data (needs at least 3 rows)", sheetName)
 	}
 
-	// Parse headers (Row 1) - metric categories
-	metricCategories := rows[0][3:] // Skip first 3 columns (All Projects, Client, Project Manager)
+	// Parse headers (Row 1) - metric categories (repeated for each month)
+	metricHeadersRow := rows[0][3:] // Skip first 3 columns
 
-	// Parse sub-headers (Row 2) - months and project info
+	// Parse sub-headers (Row 2) - months
 	subHeaders := rows[1]
 
 	// Extract months - they appear in the sub-headers starting from column D (index 3)
 	months := subHeaders[3:]
+
+	// Identify unique metrics and their column positions
+	uniqueMetrics := []string{}
+	metricFirstCol := map[string]int{} // Track first column for each metric
+
+	for colIdx, metric := range metricHeadersRow {
+		metric = strings.TrimSpace(metric)
+		if metric != "" && !contains(uniqueMetrics, metric) {
+			uniqueMetrics = append(uniqueMetrics, metric)
+			metricFirstCol[metric] = colIdx
+		}
+	}
 
 	// Data rows start from row 3
 	dataRows := rows[2:]
@@ -109,11 +121,9 @@ func convertProvidedDataToRequiredFormat(wb *excelize.File, sheetName string) ([
 		"Month-Year",
 	}
 
-	// Add metric categories as headers
-	for _, metric := range metricCategories {
-		if metric != "" {
-			header = append(header, metric)
-		}
+	// Add unique metric categories as headers
+	for _, metric := range uniqueMetrics {
+		header = append(header, metric)
 	}
 
 	output = append(output, header)
@@ -156,9 +166,12 @@ func convertProvidedDataToRequiredFormat(wb *excelize.File, sheetName string) ([
 				month,
 			}
 
-			// Add data values for this month
-			for metricIdx := 0; metricIdx < len(metricCategories); metricIdx++ {
-				dataColIdx := 3 + (metricIdx * len(months)) + monthIdx
+			// Add data values for this month (for each unique metric)
+			for _, metric := range uniqueMetrics {
+				// Find the column for this metric in this month
+				metricBaseCol := metricFirstCol[metric]
+				dataColIdx := 3 + metricBaseCol + monthIdx
+
 				if dataColIdx < len(dataRow) {
 					val := dataRow[dataColIdx]
 					// Try to convert to number if possible
@@ -181,6 +194,15 @@ func convertProvidedDataToRequiredFormat(wb *excelize.File, sheetName string) ([
 	}
 
 	return output, nil
+}
+
+func contains(slice []string, item string) bool {
+	for _, v := range slice {
+		if v == item {
+			return true
+		}
+	}
+	return false
 }
 
 func extractProjectNumber(projectName string) interface{} {
