@@ -76,7 +76,7 @@ jobs:
           cd ..
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: excel-converter-builds
           path: release_assets/
